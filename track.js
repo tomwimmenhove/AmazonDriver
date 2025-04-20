@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const trackDriver = require('./trackDriver.js');
+const { SocksProxyAgent } = require('socks-proxy-agent');
 
 (async () => {
   const trackingId = process.argv[2];

@@ -3,6 +3,7 @@
 const path = require('path');
 const trackDriver = require('./trackDriver.js');
 const fs = require('fs').promises;
+const { SocksProxyAgent } = require('socks-proxy-agent');
 
 (async () => {
   const trackingId = process.argv[2];
