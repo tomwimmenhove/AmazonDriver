@@ -34,6 +34,8 @@ const { SocksProxyAgent } = require('socks-proxy-agent');
   var outputPath;
   if (tracking.trackingObjectState === 'NOT_READY') {
     outputPath = path.join(trackingDirPath, 'last_NOT_READY.json');
+  } else if (tracking.trackingObjectState === 'YOU_ARE_NEXT') {
+    outputPath = path.join(trackingDirPath, 'last_YOU_ARE_NEXT.json');
   } else if (tracking.trackingObjectState === 'DELIVERED') {
     outputPath = path.join(trackingDirPath, 'first_DELIVERED.json');
     if (await fileExists(outputPath)) {
