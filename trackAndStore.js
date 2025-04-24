@@ -34,8 +34,6 @@ const { SocksProxyAgent } = require('socks-proxy-agent');
   var outputPath;
   if (tracking.trackingObjectState === 'NOT_READY') {
     outputPath = path.join(trackingDirPath, 'last_NOT_READY.json');
-  } else if (tracking.trackingObjectState === 'YOU_ARE_NEXT') {
-    outputPath = path.join(trackingDirPath, 'last_YOU_ARE_NEXT.json');
   } else if (tracking.trackingObjectState === 'DELIVERED') {
     outputPath = path.join(trackingDirPath, 'first_DELIVERED.json');
     if (await fileExists(outputPath)) {
@@ -43,6 +41,10 @@ const { SocksProxyAgent } = require('socks-proxy-agent');
         process.exit(0);
     }
   } else {
+    if (!tracking.transporterDetails?.geoLocation) {
+      console.log('No location data provided. No data saved.');
+      return;
+    }
     const timestamp = new Date().toISOString().replace(/[:]/g, '');
     outputPath = path.join(trackingDirPath, `${timestamp}.json`);
   }
