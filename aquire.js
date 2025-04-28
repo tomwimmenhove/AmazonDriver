@@ -1,18 +1,16 @@
 #!/usr/bin/env node
 
 const trackingDB = require('./trackingDB');
-const newAmazonSession = require('./newAmazonSession');
+const amazon = require('./amazon');
 const trackDriver = require('./trackDriver');
-
-const username = 'Username';
-const password = 'Password';
 
 const agent = undefined;
 const tries = 3
 
 async function authenticate(username, cookies) {
   try {
-    cookies = await newAmazonSession(username, password, true, cookies);
+    const password = await trackingDB.getUserPassword(username);
+    cookies = await amazon.newSession(username, password, true, cookies);
   
     for(const cookie of cookies) {
       await trackingDB.setCookie(username, cookie);
@@ -21,6 +19,20 @@ async function authenticate(username, cookies) {
     return cookies;
   } catch (error) {
     console.error(`Could not authenticate ${username}:`, error);
+  }
+}
+
+async function refresh(username, cookies) {
+  try {
+    cookies = await amazon.refreshSession(true, cookies);
+  
+    for(const cookie of cookies) {
+      await trackingDB.setCookie(username, cookie);
+    }
+
+    return cookies;
+  } catch (error) {
+    console.error(`Failed to refresh session for ${username}`, error);
   }
 }
 
@@ -95,7 +107,9 @@ async function logResult(result) {
         console.error(`Received HTTP ${result.error} for user ${package.userName}`);
         if (result.error === 400 || result.error === 500) {
           console.error(`Reauthenticating ${package.userName}...`);
-          cookies = await authenticate(package.userName, cookies);
+          cookies = await authenticate(package.userName);//, cookies);
+//          console.error(`Refreshing session for ${package.userName}...`);
+//          cookies = await refresh(package.userName, cookies);
   
           continue;
         }

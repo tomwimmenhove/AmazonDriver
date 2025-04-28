@@ -21,6 +21,20 @@ module.exports = {
     await callProcedure('CreateUser', [userName, password]);
   },
 
+  /**
+   * Retrieve the hashed password for a given userName.
+   * Throws if the user does not exist.
+   * @param {string} userName
+   * @returns {Promise<string>} the password string
+   */
+  async getUserPassword(userName) {
+    const rows = await callProcedure('GetUserPassword', [userName]);
+    const row = rows[0];
+    if (row) {
+      return row[0].password;
+   }
+  },
+
   // ── Package Management ──────────────────────────────────────────────────────
 
   async addPackage(userName, trackingNumber, destLat = null, destLon = null, destAlt = null, accuracy = null) {
