@@ -1,9 +1,0 @@
-#!/bin/bash
-
-while true ; do
-	echo -e "\n----------[ $(date) ]----------"
-	./trackAndStore.js "$1" "socks5://127.0.0.1:1080"
-	#./trackAndStore.js "$1"
-	sleep 15
-done
-
