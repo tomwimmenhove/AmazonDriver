@@ -7,6 +7,10 @@ const trackDriver = require('./trackDriver');
 const agent = undefined;
 const tries = 3
 
+function log(data) {
+  process.stdout.write(JSON.stringify({ timestamp: new Date().toISOString(), ...data }) + '\n');
+}
+
 async function authenticate(username, cookies) {
   try {
     const password = await trackingDB.getUserPassword(username);
@@ -18,7 +22,7 @@ async function authenticate(username, cookies) {
 
     return cookies;
   } catch (error) {
-    console.error(`Could not authenticate ${username}:`, error);
+    log({logLevel: 'error', message: `Could not authenticate ${username}: ${error}`});
   }
 }
 
@@ -32,7 +36,7 @@ async function refresh(username, cookies) {
 
     return cookies;
   } catch (error) {
-    console.error(`Failed to refresh session for ${username}`, error);
+    log({ logLevel: 'error', message: `Failed to refresh session for ${username}: ${error}` });
   }
 }
 
@@ -43,13 +47,7 @@ async function logResult(result) {
     ? new Date(result.transporterDetails.geoLocation.locationTime * 1000.0)
     : new Date();
 
-  console.log(JSON.stringify({
-    timestamp: {
-      epoch: result.transporterDetails?.geoLocation?.locationTime,
-      useCurrentTime: !result.transporterDetails?.geoLocation?.locationTime, 
-      usedTimestamp: timestamp
-   }
-  }, null, 2));
+  log({ logLevel: 'info', message: `Store result for ${result.trackingObjectId} (${result.trackingObjectState})` });
 
   if (result.trackingObjectState === 'PICKED_UP') {
     await trackingDB.setPickupTime(result.trackingObjectId, timestamp);
@@ -70,43 +68,37 @@ async function logResult(result) {
 
 (async () => {
   if (false) {
-    // Insert old data
-    console.error('Inserting old data');
+    log({ logLevel: 'info', message: 'Inserting old data' });
     const fs = require('fs');
     const data = await fs.promises.readFile('/tmp/all.json', 'utf8');
     const json = JSON.parse(data);
     for (const r of json) {
       await logResult(r);
     }
-    console.error('DONE');
+    log({ logLevel: 'info', message: 'Finished inserting old data' });
   }
 
   var n = 0;
   while (true) {
-    console.log(JSON.stringify({
-      run: {
-        timestamp: new Date(),
-        iteration: ++n,
-      }
-    }, null, 2));
+    log({ logLevel: 'info', message: `Run ${++n}` });
     const packages = await trackingDB.getAllPackages();
   
     for(const package of packages) {
-      console.log(JSON.stringify({ currentPackage: package }, null, 2));
+      log({ logLevel: 'info', message: 'Current package', currentPackage: package });
       for (var retry = 0; retry < tries; retry++) {
         var cookies = await trackingDB.getCookies(package.userName);
   
         const result = await trackDriver(package.trackingNumber, cookies, agent);
         if (!result.error) {
           delete result.destinationAddress;
+          log({ logLevel: 'verbose', message: 'Tracking data', trackingData: result });
           await logResult(result);
-          console.log(JSON.stringify({ trackingData: result }, null, 2));
           break;
         }
   
-        console.error(`Received HTTP ${result.error} for user ${package.userName}`);
+        log({ logLevel: 'warn', message: `Received HTTP ${result.error} for user ${package.userName}` });
         if (result.error === 400 || result.error === 500) {
-          console.error(`Reauthenticating ${package.userName}...`);
+          log({ logLevel: 'info', message: `Reauthenticating ${package.userName}...` });
           cookies = await authenticate(package.userName);//, cookies);
 //          console.error(`Refreshing session for ${package.userName}...`);
 //          cookies = await refresh(package.userName, cookies);
