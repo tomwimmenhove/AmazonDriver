@@ -1,10 +1,7 @@
-//const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-//                  '(KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36';
 const userAgent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36';
 
 function cookiesToHeader(cookies) {
   return cookies
-    //.map(({ name, value }) => `${encodeURIComponent(name)}=${encodeURIComponent(value)}`)
     .map(({ name, value }) => `${name}=${value}`)
     .join('; ');
 }
@@ -14,9 +11,6 @@ async function trackDriver(trackingId, cookies, agent) {
   const cookieHeader = cookiesToHeader(cookies);
   const sessionId = cookies
     .find(cookie => cookie.name === 'session-id' && cookie.domain === '.amazon.co.uk')?.value;
-
-//  console.log(`Using session-id: ${sessionId}`);
-//  console.log(`Cookie: ${cookieHeader}`);
 
   response = await fetch(url, {
     method: 'GET',

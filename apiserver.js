@@ -65,7 +65,6 @@ async function loadRoutePoints(trackingId, afterStr, untilStr) {
 
 const ALPH32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
-// --- 2) Encode: tracking → Base64 of indices ---
 function encodeTracking(tracking) {
   const indices = Array.from(tracking, ch => {
     const idx = ALPH32.indexOf(ch);
@@ -78,7 +77,6 @@ function encodeTracking(tracking) {
   return Buffer.from(indices).toString('base64');
 }
 
-// --- 3) Decode: Base64 → tracking ---
 function decodeTracking(code) {
   const buf = Buffer.from(code, 'base64');
   return Array.from(buf, byte => {

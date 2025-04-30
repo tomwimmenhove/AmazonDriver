@@ -99,9 +99,9 @@ async function logResult(result) {
         log({ logLevel: 'warn', message: `Received HTTP ${result.error} for user ${package.userName}` });
         if (result.error === 400 || result.error === 500) {
           log({ logLevel: 'info', message: `Reauthenticating ${package.userName}...` });
-          cookies = await authenticate(package.userName);//, cookies);
-//          console.error(`Refreshing session for ${package.userName}...`);
-//          cookies = await refresh(package.userName, cookies);
+          // Not sending cookies causes amazon not to ask to 'switch users'. Instead, just start over entirely
+          cookies = await authenticate(package.userName);
+          //cookies = await authenticate(package.userName, cookies);
   
           continue;
         }
