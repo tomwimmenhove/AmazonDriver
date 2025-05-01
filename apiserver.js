@@ -90,7 +90,7 @@ app.use((req, res, next) => {
     logger.info('HTTP request', {
       ip: req.clientIp,
       method: req.method,
-      path: req.path,
+      url: req.originalUrl,
       status: res.statusCode
     });
   });
