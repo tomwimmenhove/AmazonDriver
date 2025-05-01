@@ -45,7 +45,7 @@ async function logResult(result) {
     ? new Date(result.transporterDetails.geoLocation.locationTime * 1000.0)
     : new Date();
 
-  logger.info(`Storing result for ${result.trackingObjectId}`);
+  logger.debug('Tracking state', { trackingNumber: result.trackingObjectId, trackingState: result.trackingObjectState });
 
   if (result.trackingObjectState === 'PICKED_UP') {
     await trackingDB.setPickupTime(result.trackingObjectId, timestamp);
@@ -55,6 +55,13 @@ async function logResult(result) {
 
   const geoLocation = result.transporterDetails?.geoLocation;
   if (geoLocation && geoLocation.latitude && geoLocation.longitude && geoLocation.locationTime) {
+    logger.info('Geopoint', {
+      trackingNumber: result.trackingObjectId,
+      latitude      : geoLocation.latitude,
+      longitude     : geoLocation.longitude,
+      altitude      : geoLocation.altitude,
+      accuracy      : geoLocation.accuracy,
+    });
     await trackingDB.addGeoPoint(
       result.trackingObjectId,
       timestamp,
@@ -73,14 +80,13 @@ async function logResult(result) {
     const packages = await trackingDB.getAllPackages();
   
     for(const package of packages) {
-      logger.debug('Polling package', package);
+      logger.debug('Polling', { trackingNumber: package.trackingNumber });
       for (var retry = 0; retry < tries; retry++) {
         var cookies = await trackingDB.getCookies(package.userName);
   
         const result = await trackDriver(package.trackingNumber, cookies, agent);
         if (!result.error) {
           delete result.destinationAddress;
-          logger.debug('Tracking data', result);
           await logResult(result);
           break;
         }

@@ -29,6 +29,7 @@
     "call-bound": "^1.0.4",
     "callsites": "^3.1.0",
     "chromium-bidi": "^4.1.1",
+    "clean-deep": "^3.4.0",
     "cliui": "^8.0.1",
     "color-convert": "^2.0.1",
     "color-name": "^1.1.4",

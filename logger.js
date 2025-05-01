@@ -1,3 +1,5 @@
+const cleanDeep = require('clean-deep');
+
 const LogLevels = { debug: 0, info: 1, warn: 2, error: 3 };
 const currentLevel = LogLevels[process.env.LOG_LEVEL || 'info'];
 
@@ -6,12 +8,14 @@ function log(level, message, context = {}) {
     return;
   }
 
-  process.stdout.write(JSON.stringify({
+  const logEntry = cleanDeep({
     time: new Date().toISOString(),
     level,
     message,
     ...context
-  }) + '\n');
+  });
+
+  process.stdout.write(JSON.stringify(logEntry) + '\n');
 }
 
 const debug = (msg, ctx) => log('debug', msg, ctx);
