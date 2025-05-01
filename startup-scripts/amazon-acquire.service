@@ -1,0 +1,17 @@
+[Unit]
+Description=AmazonTracker Data Acquisition Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=node
+WorkingDirectory=/opt/amazontracker
+EnvironmentFile=-/etc/amazontracker/.env
+ExecStart=/usr/bin/node /opt/amazontracker/acquire.js
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
