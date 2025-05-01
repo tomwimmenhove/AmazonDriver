@@ -88,10 +88,10 @@ app.use(requestIp.mw());
 app.use((req, res, next) => {
   res.on('finish', () => {
     logger.info('HTTP request', {
+      ip: req.clientIp,
       method: req.method,
       path: req.path,
-      status: res.statusCode,
-      ip: req.clientIp
+      status: res.statusCode
     });
   });
   next();
