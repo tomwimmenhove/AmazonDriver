@@ -2,6 +2,7 @@
 
 const trackingDB = require('./trackingDB');
 const express = require('express');
+const requestIp = require('request-ip');
 const logger = require('./logger');
 
 const app = express();
@@ -82,13 +83,15 @@ function decodeTracking(code) {
   }).join('');
 }
 
+app.use(requestIp.mw());
+
 app.use((req, res, next) => {
   res.on('finish', () => {
     logger.info('HTTP request', {
       method: req.method,
       path: req.path,
       status: res.statusCode,
-      ip: req.ip
+      ip: req.clientIp
     });
   });
   next();
@@ -133,7 +136,7 @@ app.get('/api/list', async (req, res) => {
 });
 
 const server = app.listen(port, () => {
-  logger.info('Server stared', { port });
+  logger.info('Server starting', { port });
 });
 
 server.on('error', (err) => {
