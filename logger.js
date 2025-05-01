@@ -6,11 +6,12 @@ function log(level, message, context = {}) {
     return;
   }
 
-  const entry = JSON.stringify({ time: new Date().toISOString(), level, message, ...context });
-  const out = LogLevels[level] >= LogLevels.warn
-    ? process.stderr
-    : process.stdout;
-  out.write(entry + '\n');
+  process.stdout.write(JSON.stringify({
+    time: new Date().toISOString(),
+    level,
+    message,
+    ...context
+  }) + '\n');
 }
 
 const debug = (msg, ctx) => log('debug', msg, ctx);
