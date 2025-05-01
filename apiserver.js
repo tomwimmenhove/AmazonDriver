@@ -2,6 +2,7 @@
 
 const trackingDB = require('./trackingDB');
 const express = require('express');
+const logger = require('./logger');
 
 const app = express();
 const port = process.env.PORT || 30000;
@@ -48,12 +49,6 @@ async function loadRoutePoints(trackingId, afterStr, untilStr) {
   const defaultAfter = new Date(Date.now() - 24 * 3600 * 1000);
   const afterDate  = parseDate(afterStr, defaultAfter);
   const untilDate = parseDate(untilStr, undefined, afterDate);
-
-  console.log(
-    `DB query for ${trackingId} after ${afterDate.toISOString()}` +
-    (untilDate ? ` until ${untilDate.toISOString()}` : '')
-  );
-
   const history = await trackingDB.getGeoHistory(trackingId, afterDate, untilDate);
 
   return history.map(r => ({
@@ -87,9 +82,21 @@ function decodeTracking(code) {
   }).join('');
 }
 
-// -- Express routes ----------------------------------------------------------
+app.use((req, res, next) => {
+  res.on('finish', () => {
+    logger.info('HTTP request', {
+      method: req.method,
+      path: req.path,
+      status: res.statusCode,
+      ip: req.ip
+    });
+  });
+  next();
+});
+
 app.get('/api/history', async (req, res) => {
   if (!req.query.trackingId) {
+    logger.error('No trackingId in query');
     res.status(400).json({ error: 'Bad Request' });
     return;
   }
@@ -103,7 +110,7 @@ app.get('/api/history', async (req, res) => {
     );
     res.json(points);
   } catch (err) {
-    console.error(err);
+    logger.error('Error while loading route points', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -120,12 +127,17 @@ app.get('/api/list', async (req, res) => {
 
     res.json(encodedPackages);
   } catch (err) {
-    console.error(err);
+    logger.errpr('Error while listing packages', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-app.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
+const server = app.listen(port, () => {
+  logger.info('Server stared', { port });
+});
+
+server.on('error', (err) => {
+  logger.error('Server failed to start', { error: err.message, code: err.code });
+  process.exit(1);
 });
 

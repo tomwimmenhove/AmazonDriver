@@ -3,13 +3,11 @@
 const trackingDB = require('./trackingDB');
 const amazon = require('./amazon');
 const trackDriver = require('./trackDriver');
+const logger = require('./logger');
 
 const agent = undefined;
 const tries = 3
 
-function log(data) {
-  process.stdout.write(JSON.stringify({ timestamp: new Date().toISOString(), ...data }) + '\n');
-}
 
 async function authenticate(username, cookies) {
   try {
@@ -22,7 +20,7 @@ async function authenticate(username, cookies) {
 
     return cookies;
   } catch (error) {
-    log({logLevel: 'error', message: `Could not authenticate ${username}: ${error}`});
+    logger.error(`Could not authenticate ${username}: ${error}`);
   }
 }
 
@@ -36,7 +34,7 @@ async function refresh(username, cookies) {
 
     return cookies;
   } catch (error) {
-    log({ logLevel: 'error', message: `Failed to refresh session for ${username}: ${error}` });
+    logger.error(`Failed to refresh session for ${username}: ${error}`);
   }
 }
 
@@ -47,7 +45,7 @@ async function logResult(result) {
     ? new Date(result.transporterDetails.geoLocation.locationTime * 1000.0)
     : new Date();
 
-  log({ logLevel: 'info', message: `Store result for ${result.trackingObjectId} (${result.trackingObjectState})` });
+  logger.info(`Storing result for ${result.trackingObjectId}`);
 
   if (result.trackingObjectState === 'PICKED_UP') {
     await trackingDB.setPickupTime(result.trackingObjectId, timestamp);
@@ -67,44 +65,37 @@ async function logResult(result) {
 }
 
 (async () => {
-  if (false) {
-    log({ logLevel: 'info', message: 'Inserting old data' });
-    const fs = require('fs');
-    const data = await fs.promises.readFile('/tmp/all.json', 'utf8');
-    const json = JSON.parse(data);
-    for (const r of json) {
-      await logResult(r);
-    }
-    log({ logLevel: 'info', message: 'Finished inserting old data' });
-  }
+  logger.info('Data acquisition started');
 
   var n = 0;
   while (true) {
-    log({ logLevel: 'info', message: `Run ${++n}` });
+    logger.debug(`Iteration`, { n: ++n });
     const packages = await trackingDB.getAllPackages();
   
     for(const package of packages) {
-      log({ logLevel: 'info', message: 'Current package', currentPackage: package });
+      logger.debug('Polling package', package);
       for (var retry = 0; retry < tries; retry++) {
         var cookies = await trackingDB.getCookies(package.userName);
   
         const result = await trackDriver(package.trackingNumber, cookies, agent);
         if (!result.error) {
           delete result.destinationAddress;
-          log({ logLevel: 'verbose', message: 'Tracking data', trackingData: result });
+          logger.debug('Tracking data', result);
           await logResult(result);
           break;
         }
   
-        log({ logLevel: 'warn', message: `Received HTTP ${result.error} for user ${package.userName}` });
+        logger.warn('Received unexpected HTTP status code', { statusCode: result.error, userName: package.userName });
         if (result.error === 400 || result.error === 500) {
-          log({ logLevel: 'info', message: `Reauthenticating ${package.userName}...` });
+          logger.info('Reauthenticate user', { userName: package.userName, retry });
           // Not sending cookies causes amazon not to ask to 'switch users'. Instead, just start over entirely
           cookies = await authenticate(package.userName);
           //cookies = await authenticate(package.userName, cookies);
   
           continue;
         }
+
+        logger.error('Exhausted reauthenticating retries', { userName: package.userName });
       }
     }
 
