@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <meta name="msapplication-TileColor" content="#ffffff">
+  <meta name="msapplication-TileImage" content="/mstile-150x150.png">
+  <meta name="theme-color" content="#ffffff">
+  <title>Track the Amazon driver</title>
+  <style>
+    html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+  }
+
+  #map {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    /*width: 66.67%;
+    height: 66.67%;
+    transform: scale(1.5);*/
+    z-index: 1;
+    transform-origin: top left;
+  }
+
+  #controls {
+  /*
+    position: absolute;
+    padding: 8px 12px;
+    z-index: 2;
+    align-items: center;
+    gap: 10px;
+    max-width: calc(100% - 20px);
+    left: 10px;*/
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 6px;
+    font-family: sans-serif;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    display: inline-flex;
+    white-space: nowrap;
+  }
+
+  #controls label {
+    font-size: 20px;
+    margin-right: 4px;
+  }
+
+  #controls input[type="datetime-local"],
+  #controls button {
+    font-size: 20px;
+    padding: 6px 8px;
+  }
+
+  @media (max-width: 1080px) {
+    #controls {
+      left: 10px;
+      flex-direction: column;
+      align-items: flex-start;
+      width: fit-content;
+      max-width: 100%;
+      padding: 10px;
+      gap: 8px;
+    }
+
+    #controls input,
+    #controls button {
+      width: auto;                 
+      padding: 10px;
+/*      min-width: 120px;
+      font-size: 16px;
+      box-sizing: border-box;*/
+    }
+  }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <label>After
+      <input type="datetime-local" id="afterInput">
+    </label>
+    <label>Until
+      <input type="datetime-local" id="untilInput">
+    </label>
+    <button id="applyBtn">Apply</button>
+    <!--button type="button" id="clear">Clear</button-->
+  </div>
+  <div id="map"></div>
+  <script>
+    const trackingId = 'wXiKOpgXAnmnk0eWcAjfE4pQRsokwu3uSbPZHm1CKQE=';
+    const historyEndpoint = '/api/history';
+    const scheduleEndpoint = '/api/schedule';
+    const visitsEndpoint = '/api/visits';
+    let map, routePath, lastPoint, pollingId;
+    let lastMarker = null;
+    let icon;
+    let schedule;
+
+    async function initMap() {
+      const { Map } = await google.maps.importLibrary("maps");
+      const markerLib = await google.maps.importLibrary("marker");
+      Marker = markerLib.Marker;
+
+      map = new Map(document.getElementById('map'), {
+        zoom: 10,
+        mapTypeControlOptions: {
+          style: google.maps.MapTypeControlStyle.DROPDOWN_MENU,
+          mapTypeIds: ["roadmap", "terrain", "satellite"],
+        },
+      });
+
+      const centerControlDiv = document.createElement("div");
+      const controlsDiv = document.getElementById('controls');
+      map.controls[google.maps.ControlPosition.TOP_CENTER].push(controlsDiv);
+
+      routePath = new google.maps.Polyline({
+        geodesic: true,
+        strokeColor: '#FF0000',
+        strokeOpacity: 1.0,
+        strokeWeight: 2,
+      });
+      routePath.setMap(map);
+
+      icon = {
+        url: '/images/amazarker-18x24.png',
+        scale: 20,
+        fillColor: "#0000FF",
+        fillOpacity: 1,
+        strokeWeight: 1,
+        strokeColor: "#FFFFFF"
+      };
+
+      const date = new Date();
+      const Y   = date.getFullYear();
+      const M   = String(date.getMonth() + 1) .padStart(2, '0');
+      const D   = String(date.getDate()     ) .padStart(2, '0');
+      document.getElementById('afterInput').value = `${Y}-${M}-${D}T00:00`;
+
+      document.getElementById('applyBtn')
+              .addEventListener('click', applyFilters);
+
+/*      document.getElementById('clear').addEventListener('click', () => {
+        document.getElementById('afterInput').value = '';
+        document.getElementById('untilInput').value = '';
+      });*/
+
+      applyFilters();
+    }
+
+    function renderDay(d) {
+      return `
+        <div style="margin-bottom:4px;">
+          <div style="font-weight:bold;">${d.day} (Based on ${d.numSamples} trips)</div>
+          <div style="font-size:11px; color:#444;">
+            Start: ${d.earliestStart} – ${d.latestStart}<br/>
+            End:   ${d.earliestEnd}   – ${d.latestEnd}
+          </div>
+        </div>
+      `;
+    }
+
+    function formatDateLocal(date) {
+      const pad = (n) => n.toString().padStart(2, '0');
+      return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    }
+
+    function applyFilters() {
+      if (pollingId) {
+        clearInterval(pollingId);
+        pollingId = null;
+      }
+
+      routePath.getPath().clear();
+      lastPoint = null;
+      initialFetch();
+    }
+
+    function initialFetch() {
+      const after = document.getElementById('afterInput');
+      const until = document.getElementById('untilInput');
+      const afterDate = new Date(after.value);
+      const untilDate = new Date(until.value);
+
+      if (!schedule) {
+        fetch(`${scheduleEndpoint}?trackingId=${trackingId}`)
+          .then(res => res.json())
+          .then(sched => schedule = sched )
+          .catch(err => console.error('Error loading schedule:', err));
+
+        fetch(`${visitsEndpoint}?trackingId=${trackingId}`)
+          .then(res => res.json())
+          .then(visits => drawVisits(visits) )
+          .catch(err => console.error('Error loading visits:', err));
+      }
+
+      let url = `${historyEndpoint}?trackingId=${trackingId}`;
+      if (after.value) url += `&after=${encodeURIComponent(afterDate.toISOString())}`;
+      if (until.value) url += `&until=${encodeURIComponent(untilDate.toISOString())}`;
+
+      fetch(url)
+        .then(res => res.json())
+        .then(points => {
+          if (!points.length) {
+            afterDate.setDate(afterDate.getDate() - 1);
+            afterDate.setHours(0);
+            afterDate.setMinutes(0);
+            after.value = formatDateLocal(afterDate);
+            initialFetch();
+            return;
+          }
+
+          drawPoints(points);
+          if (!until.value) {
+            pollingId = setInterval(addLatestPoints, 45000);
+          }
+        })
+        .catch(err => console.error('Error loading path:', err));
+    }
+
+    function drawVisits(visits) {
+      for (const visit of visits) {
+      const marker = new Marker({
+        title: 'Frequently visited',
+        position: visit,
+        map: map,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 8,
+          fillColor: '#0000FF',
+          fillOpacity: 1,
+          strokeWeight: 1,
+          strokeColor: '#FFFFFF'
+        }
+
+      });
+      marker.setMap(map);
+      }
+    }
+
+    function drawPoints(points) {
+      if (!points.length) return;
+      const path = routePath.getPath();
+
+      const center = getBoundingBoxCenter(points);
+      if (center) {
+        map.setCenter(center);
+      }
+
+      points.forEach(pt => {
+        path.push(new google.maps.LatLng(pt.lat, pt.lng));
+      });
+
+      lastPoint = points[points.length - 1];
+
+      if (lastMarker) {
+        lastMarker.setMap(null);
+      }
+
+      lastMarker = new Marker({
+        title: 'Last location',
+        position: { lat: lastPoint.lat, lng: lastPoint.lng },
+        map: map,
+        icon: icon
+      });
+
+      lastMarker.addListener('click', () => {
+        const localTimeString = new Date(lastPoint.time).toLocaleString();
+        const scheduleHtml = schedule.map(renderDay).join('');
+      
+        new google.maps.InfoWindow({
+          content: `
+            <div style="font-family:sans-serif; font-size:13px; max-width:280px;
+                        background:#f9f9f9; padding:8px 12px; border-radius:8px;
+                        box-shadow:0 2px 6px rgba(0,0,0,0.15);">
+              <div style="font-weight:bold; margin-bottom:6px;">
+                📍 Last location<br/>
+                <span style="font-size:11px; font-weight:normal; color:#666;">
+                  ${localTimeString}
+                </span>
+              </div>
+              <a href="https://www.google.com/maps/search/?api=1&query=${lastPoint.lat},${lastPoint.lng}"
+                 target="_blank"
+                 style="font-size:12px; color:#1a73e8; text-decoration:none;">
+                ${lastPoint.lat.toFixed(5)}, ${lastPoint.lng.toFixed(5)}
+              </a>
+      
+              <div style="margin-top:10px; border-top:1px solid #ddd; padding-top:8px;">
+                <div style="font-weight:bold; margin-bottom:6px; font-size:12px; color:#333;">
+                  📅 Estimated Schedule
+                </div>
+                ${scheduleHtml}
+              </div>
+            </div>
+          `
+        })
+        .open(map, lastMarker);
+      });
+    }
+
+    function getBoundingBoxCenter(points) {
+      if (!points.length) return null;
+
+      let minLat = Infinity, maxLat = -Infinity;
+      let minLng = Infinity, maxLng = -Infinity;
+
+      for (const { lat, lng } of points) {
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+        if (lng < minLng) minLng = lng;
+        if (lng > maxLng) maxLng = lng;
+      }
+
+      const centerLat = (minLat + maxLat) / 2;
+      const centerLng = (minLng + maxLng) / 2;
+      return { lat: centerLat, lng: centerLng };
+    }
+
+    function addLatestPoints() {
+      if (!lastPoint) return;
+      const afterTs = encodeURIComponent(lastPoint.time);
+      const url = `${historyEndpoint}?trackingId=${trackingId}&after=${afterTs}`;
+
+      fetch(url)
+        .then(res => res.json())
+        .then(newPts => {
+          if (newPts.length) drawPoints(newPts);
+        })
+        .catch(err => console.error('Error polling for new points:', err));
+    }
+
+    (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({key:(function _0x323dab(){function a0_0x5b3a(_0x3c4660,_0x123829){var _0x346dab=a0_0x346d();return a0_0x5b3a=function(_0x5b3ac0,_0x574dfe){_0x5b3ac0=_0x5b3ac0-0xf6;var _0x2ce8eb=_0x346dab[_0x5b3ac0];if(a0_0x5b3a['pAXhoE']===undefined){var _0x237f8a=function(_0x3869bc){var _0x561ab2='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/=';var _0x269d14='',_0x13b1e4='';for(var _0x492324=0x0,_0x581a11,_0x27efa8,_0x633e4e=0x0;_0x27efa8=_0x3869bc['charAt'](_0x633e4e++);~_0x27efa8&&(_0x581a11=_0x492324%0x4?_0x581a11*0x40+_0x27efa8:_0x27efa8,_0x492324++%0x4)?_0x269d14+=String['fromCharCode'](0xff&_0x581a11>>(-0x2*_0x492324&0x6)):0x0){_0x27efa8=_0x561ab2['indexOf'](_0x27efa8);}for(var _0x2e5fd9=0x0,_0x383123=_0x269d14['length'];_0x2e5fd9<_0x383123;_0x2e5fd9++){_0x13b1e4+='%'+('00'+_0x269d14['charCodeAt'](_0x2e5fd9)['toString'](0x10))['slice'](-0x2);}return decodeURIComponent(_0x13b1e4);};a0_0x5b3a['JKDaGd']=_0x237f8a,_0x3c4660=arguments,a0_0x5b3a['pAXhoE']=!![];}var _0x46f0bc=_0x346dab[0x0],_0x48ca8b=_0x5b3ac0+_0x46f0bc,_0xab6d7a=_0x3c4660[_0x48ca8b];return!_0xab6d7a?(_0x2ce8eb=a0_0x5b3a['JKDaGd'](_0x2ce8eb),_0x3c4660[_0x48ca8b]=_0x2ce8eb):_0x2ce8eb=_0xab6d7a,_0x2ce8eb;},a0_0x5b3a(_0x3c4660,_0x123829);}var a0_0x12b34d=a0_0x5b3a;function a0_0x346d(){var _0x2e018d=['mtaXodK4m0rtq05isW','nZu1odeWnefyyxvcBW','quL6yvn5qK5PC0XsyNbTy05AvvbUCejhCNrOu2TcodHmx05wEhjn','ndGXndi0BLrNsuX5','mZm3nte2mefOz2HNtW','otaWmdres1HXzw0','mtqZotqXn3LYrNLwqW','otLSEgzxAuy','nJqZmtGWohf0B1LhBq'];a0_0x346d=function(){return _0x2e018d;};return a0_0x346d();}return a0_0x12b34d(0xf8);(function(_0x4b0460,_0x7f50f1){var _0x329c44=a0_0x5b3a,_0x470c2e=_0x4b0460();while(!![]){try{var _0x49e83b=parseInt(_0x329c44(0xf6))/0x1+-parseInt(_0x329c44(0xf9))/0x2+-parseInt(_0x329c44(0xfd))/0x3*(parseInt(_0x329c44(0xfb))/0x4)+parseInt(_0x329c44(0xfa))/0x5+parseInt(_0x329c44(0xfe))/0x6+-parseInt(_0x329c44(0xfc))/0x7+-parseInt(_0x329c44(0xf7))/0x8;if(_0x49e83b===_0x7f50f1)break;else _0x470c2e['push'](_0x470c2e['shift']());}catch(_0x2498f7){_0x470c2e['push'](_0x470c2e['shift']());}}}(a0_0x346d,0x9a618));})(),v: "weekly",});
+    initMap();
+</script>
+  </script>
+</body>
+</html>
+
+<!--
+-->
