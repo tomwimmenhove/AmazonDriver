@@ -146,6 +146,49 @@ module.exports = {
     return rows[0];
   },
 
+  /**
+   * Gets the estimated 7-day driving schedule (Mon–Sun) for a given trackingId, either from
+   * cache (if younger than maxAgeSeconds) or by recalculating and repopulating the cache.
+   *
+   * @param {number} trackingNumber  the trackingId you want to summarize
+   * @param {number} maxAgeSeconds   how fresh the cache must be (in seconds)
+   * @returns {Promise<Array<{
+   *   day: string,
+   *   numSamples: number,
+   *   earliestStart: string,   // TIME format
+   *   latestStart: string,     // TIME format
+   *   earliestEnd: string,     // TIME format
+   *   latestEnd: string,       // TIME format
+   *   generatedAt: string,     // DATETIME when this summary was generated
+   *   ageSeconds: number       // how many seconds old the cached row is
+   * }>>}
+   */
+  async getSchedule(trackingNumber, maxAgeSeconds) {
+    // call the stored procedure we defined earlier
+    const rows = await callProcedure('GetSchedule', [
+      trackingNumber,
+      maxAgeSeconds
+    ]);
+    return rows[0];
+  },
+
+  // ── Visits ───────────────────────────────────────────────────────
+
+  async storeVisit(conn, trackingNumber, numVisits, trackingEnabled, lat, lon) {
+    const [rows] = await conn.query(
+      'CALL StoreVisit(?,?,?,?,?)',
+      [trackingNumber, numVisits, trackingEnabled, lat, lon]
+    );
+    return rows[0];
+  },
+		
+  async getVisits(trackingNumber) {
+    const rows = await callProcedure('GetVisits', [
+      trackingNumber
+    ]);
+    return rows[0];
+  },
+
   // ── Cookie Management ───────────────────────────────────────────────────────
   /**
    * Upsert a Puppeteer‐style cookie object for a user.
@@ -221,7 +264,29 @@ module.exports = {
 
       return cookie;
     });
+  },
 
+  // ── Transactions ────────────────────────────────────────────────────────
+
+  async beginTransaction() {
+    const conn = await pool.getConnection();
+    await conn.beginTransaction();
+    return conn;
+  },
+
+  async clearVisits(conn) {
+    conn ??= await pool.getConnection();
+    await conn.query('DELETE FROM Visits');
+  },
+
+  async commitTransaction(conn) {
+    await conn.commit();
+    conn.release();
+  },
+
+  async rollbackTransaction(conn) {
+    await conn.rollback();
+    conn.release();
   },
 
   // ── Generic Helpers ────────────────────────────────────────────────────────
@@ -241,3 +306,4 @@ module.exports = {
     }
   }
 };
+

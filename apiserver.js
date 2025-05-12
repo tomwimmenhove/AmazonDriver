@@ -4,9 +4,11 @@ const trackingDB = require('./trackingDB');
 const express = require('express');
 const requestIp = require('request-ip');
 const logger = require('./logger');
+const crypto = require('crypto');
 
 const app = express();
 const port = process.env.PORT || 30000;
+const secret = process.env.SECRET;
 
 // -- Date parsing utils ------------------------------------------------------
 
@@ -41,12 +43,10 @@ function parseDate(input, defaultDate, relativeTo = new Date()) {
  * @returns {Promise<Array<Object>>} array of { time, lat, lng, alt, accuracy }
  */
 async function loadRoutePoints(trackingId, afterStr, untilStr) {
-  // basic sanitization
   if (!/^[\w-]+$/.test(trackingId)) {
     throw new Error('Invalid trackingId');
   }
 
-  // compute Date objects
   const defaultAfter = new Date(Date.now() - 24 * 3600 * 1000);
   const afterDate  = parseDate(afterStr, defaultAfter);
   const untilDate = parseDate(untilStr, undefined, afterDate);
@@ -59,28 +59,28 @@ async function loadRoutePoints(trackingId, afterStr, untilStr) {
   }));
 }
 
-const ALPH32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+function encrypt(message, secret) {
+  const key = crypto.createHash('sha256').update(secret).digest();
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+  const encrypted = Buffer.concat([cipher.update(message, 'utf8'), cipher.final()]);
 
-function encodeTracking(tracking) {
-  const indices = Array.from(tracking, ch => {
-    const idx = ALPH32.indexOf(ch);
-    if (idx === -1) {
-      throw new Error(`Invalid character "${ch}"—must be in ALPH32.`);
-    }
-    return idx;
-  });
-  // pack into a Buffer of one-byte values and base64
-  return Buffer.from(indices).toString('base64');
+  return Buffer.concat([iv, encrypted]).toString('base64');
 }
 
-function decodeTracking(code) {
-  const buf = Buffer.from(code, 'base64');
-  return Array.from(buf, byte => {
-    if (byte < 0 || byte >= ALPH32.length) {
-      throw new Error(`Decoded byte ${byte} out of range`);
-    }
-    return ALPH32[byte];
-  }).join('');
+function decrypt(data, secret) {
+  try {
+  const b = Buffer.from(data, 'base64');
+  const iv = b.slice(0, 16);
+  const ciphertext = b.slice(16);
+  const key = crypto.createHash('sha256').update(secret).digest();
+  const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+
+  return decrypted.toString('utf8');
+  } catch {
+    return null;
+  }
 }
 
 app.use(requestIp.mw());
@@ -104,7 +104,7 @@ app.get('/api/history', async (req, res) => {
     return;
   }
 
-  const decodedTrackingId = decodeTracking(req.query.trackingId);
+  const decodedTrackingId = decrypt(req.query.trackingId, secret);
   try {
     const points = await loadRoutePoints(
       decodedTrackingId,
@@ -123,7 +123,7 @@ app.get('/api/list', async (req, res) => {
     const packages = await trackingDB.getAllPackages();
     const encodedPackages = packages.map(pack => {
       return {
-        trackingId: encodeTracking(pack.trackingNumber),
+        trackingId: encrypt(pack.trackingNumber, secret),
         createdAt: pack.packageCreatedAt
       };
     });
@@ -131,6 +131,50 @@ app.get('/api/list', async (req, res) => {
     res.json(encodedPackages);
   } catch (err) {
     logger.errpr('Error while listing packages', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/schedule', async (req, res) => {
+  if (!req.query.trackingId) {
+    logger.error('No trackingId in query');
+    return res.status(400).json({ error: 'Bad Request: trackingId required' });
+  }
+
+  //const maxAgeSeconds = parseInt(req.query.maxAgeSeconds, 10) || 3600;
+  const maxAgeSeconds = 3600;
+  const decodedTrackingId = decrypt(req.query.trackingId, secret);
+
+  try {
+    const summary = await trackingDB.getSchedule(
+      decodedTrackingId,
+      maxAgeSeconds
+    );
+    res.json(summary);
+  } catch (err) {
+    logger.error('Error while loading tracking summary', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/visits', async (req, res) => {
+  if (!req.query.trackingId) {
+    logger.error('No trackingId in query');
+    return res.status(400).json({ error: 'Bad Request: trackingId required' });
+  }
+
+  const decodedTrackingId = decrypt(req.query.trackingId, secret);
+
+  try {
+    var visits = await trackingDB.getVisits(decodedTrackingId);
+    visits = visits.map(({ lon, ...rest }) => ({
+      ...rest,
+      lng: lon
+    }));
+
+    res.json(visits);
+  } catch (err) {
+    logger.error(`Error fetching visits for ${trackingNumber}`, err);
     res.status(500).json({ error: 'Server error' });
   }
 });
