@@ -5,7 +5,8 @@
   "scripts": {
     "start-apiserver": "node apiserver.js",
     "start-acquire": "node acquire.js",
-    "start-all": "npm-run-all --silent --parallel start-apiserver start-acquire"
+    "start-all": "npm-run-all --silent --parallel start-apiserver start-acquire",
+    "update": "node analyzeRestingSpots.js"
   },
   "dependencies": {
     "accepts": "^2.0.0",
