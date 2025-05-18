@@ -77,27 +77,42 @@ async function logResult(result) {
   var n = 0;
   while (true) {
     logger.debug(`Iteration`, { n: ++n });
-    const packages = await trackingDB.getAllPackages();
-  
+
+    var packages;
+    while (true) {
+      try {
+        packages = await trackingDB.getAllPackages();
+        break;
+      } catch (exception) {
+        logger.error('An exception occurred while retrieving packages', { exception: exception });
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+
     for(const package of packages) {
       logger.debug('Polling', { trackingNumber: package.trackingNumber });
       for (var retry = 0; retry < tries; retry++) {
-        var cookies = await trackingDB.getCookies(package.userName);
-  
-        const result = await trackDriver(package.trackingNumber, cookies, agent);
-        if (!result.error) {
-          delete result.destinationAddress;
-          await logResult(result);
-          break;
-        }
-  
-        logger.warn('Received unexpected HTTP status code', { statusCode: result.error, userName: package.userName });
-        if (result.error === 400 || result.error === 500) {
-          logger.info('Reauthenticate user', { userName: package.userName, retry });
-          // Not sending cookies causes amazon not to ask to 'switch users'. Instead, just start over entirely
-          cookies = await authenticate(package.userName);
-          //cookies = await authenticate(package.userName, cookies);
-  
+        try {
+          var cookies = await trackingDB.getCookies(package.userName);
+    
+          const result = await trackDriver(package.trackingNumber, cookies, agent);
+          if (!result.error) {
+            delete result.destinationAddress;
+            await logResult(result);
+            break;
+          }
+    
+          logger.warn('Received unexpected HTTP status code', { statusCode: result.error, userName: package.userName });
+          if (result.error === 400 || result.error === 500) {
+            logger.info('Reauthenticate user', { userName: package.userName, retry });
+            // Not sending cookies causes amazon not to ask to 'switch users'. Instead, just start over entirely
+            cookies = await authenticate(package.userName);
+            //cookies = await authenticate(package.userName, cookies);
+    
+            continue;
+          }
+        } catch (exception) {
+          logger.error('An exception occurred while processing package', { exception: exception });
           continue;
         }
 
