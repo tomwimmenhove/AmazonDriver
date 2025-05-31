@@ -1,0 +1,17 @@
+In case the DNS changes, this is the enf point:
+
+securephotostorageservice-eu-external.amazon.co.uk is an alias for securephotostorageservice-eu-external.amazon.com.
+securephotostorageservice-eu-external.amazon.com is an alias for tp.2f797abaa-frontier.amazon.com.
+tp.2f797abaa-frontier.amazon.com is an alias for d2c3zdof2zl3w7.cloudfront.net.
+d2c3zdof2zl3w7.cloudfront.net has address 18.245.187.54
+d2c3zdof2zl3w7.cloudfront.net has address 18.245.187.26
+d2c3zdof2zl3w7.cloudfront.net has address 18.245.187.101
+d2c3zdof2zl3w7.cloudfront.net has address 18.245.187.64
+
+54.187.245.18.in-addr.arpa domain name pointer server-18-245-187-54.lhr5.r.cloudfront.net.
+
+26.187.245.18.in-addr.arpa domain name pointer server-18-245-187-26.lhr5.r.cloudfront.net.
+
+101.187.245.18.in-addr.arpa domain name pointer server-18-245-187-101.lhr5.r.cloudfront.net.
+
+64.187.245.18.in-addr.arpa domain name pointer server-18-245-187-64.lhr5.r.cloudfront.net.
