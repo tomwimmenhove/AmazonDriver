@@ -90,6 +90,9 @@ async function logResult(result) {
     }
 
     for(const package of packages) {
+      if (package.deliveryStatus === 'DELIVERED') {
+        continue;
+      }
       logger.debug('Polling', { trackingNumber: package.trackingNumber });
       for (var retry = 0; retry < tries; retry++) {
         try {

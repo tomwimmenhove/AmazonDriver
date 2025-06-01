@@ -124,6 +124,7 @@ app.get('/api/list', async (req, res) => {
     const encodedPackages = packages.map(pack => {
       return {
         trackingId: encrypt(pack.trackingNumber, secret),
+        deliveryStatus: pack.deliveryStatus,
         createdAt: pack.packageCreatedAt
       };
     });
