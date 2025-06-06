@@ -3,17 +3,32 @@ const cleanDeep = require('clean-deep');
 const LogLevels = { debug: 0, info: 1, warn: 2, error: 3 };
 const currentLevel = LogLevels[process.env.LOG_LEVEL || 'info'];
 
-function log(level, message, context = {}) {
-  if (LogLevels[level] < currentLevel) {
-    return;
+function createLogEntry(level, message, context) {
+  if (context instanceof Error) {
+    return cleanDeep({
+      time: new Date().toISOString(),
+      level,
+      message,
+      exceptionName: context.name,
+      exceptionMessage: context.message,
+      exceptionStack: context.stack,
+    });
   }
 
-  const logEntry = cleanDeep({
+  return cleanDeep({
     time: new Date().toISOString(),
     level,
     message,
     ...context
   });
+}
+
+function log(level, message, context = {}) {
+  if (LogLevels[level] < currentLevel) {
+    return;
+  }
+
+  const logEntry = createLogEntry(level, message, context);
 
   process.stdout.write(JSON.stringify(logEntry) + '\n');
 }

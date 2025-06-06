@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+require('dotenv').config();
 const trackingDB = require('./trackingDB');
 const express = require('express');
 const requestIp = require('request-ip');
@@ -112,8 +113,8 @@ app.get('/api/history', async (req, res) => {
       req.query.until
     );
     res.json(points);
-  } catch (err) {
-    logger.error('Error while loading route points', err);
+  } catch (error) {
+    logger.error('Error while loading route points', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -130,8 +131,8 @@ app.get('/api/list', async (req, res) => {
     });
 
     res.json(encodedPackages);
-  } catch (err) {
-    logger.errpr('Error while listing packages', err);
+  } catch (error) {
+    logger.errpr('Error while listing packages', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -152,8 +153,8 @@ app.get('/api/schedule', async (req, res) => {
       maxAgeSeconds
     );
     res.json(summary);
-  } catch (err) {
-    logger.error('Error while loading tracking summary', err);
+  } catch (error) {
+    logger.error('Error while loading tracking summary', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -174,8 +175,8 @@ app.get('/api/visits', async (req, res) => {
     }));
 
     res.json(visits);
-  } catch (err) {
-    logger.error(`Error fetching visits for ${trackingNumber}`, err);
+  } catch (error) {
+    logger.error(`Error fetching visits for ${trackingNumber}`, error);
     res.status(500).json({ error: 'Server error' });
   }
 });

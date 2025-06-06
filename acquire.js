@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+require('dotenv').config();
 const trackingDB = require('./trackingDB');
 const amazon = require('./amazon');
 const trackDriver = require('./trackDriver');
@@ -20,7 +21,7 @@ async function authenticate(username, cookies) {
 
     return cookies;
   } catch (error) {
-    logger.error(`Could not authenticate ${username}: ${error}`);
+    logger.error(`Could not authenticate ${username}`, error);
   }
 }
 
@@ -34,7 +35,7 @@ async function refresh(username, cookies) {
 
     return cookies;
   } catch (error) {
-    logger.error(`Failed to refresh session for ${username}: ${error}`);
+    logger.error(`Failed to refresh session for ${username}`, error);
   }
 }
 
@@ -61,6 +62,10 @@ async function logResult(result) {
       longitude     : geoLocation.longitude,
       altitude      : geoLocation.altitude,
       accuracy      : geoLocation.accuracy,
+/*      destination   : {
+	      latitude: result?.destinationAddress?.geoLocation?.latitude,
+	      longitude: result?.destinationAddress?.geoLocation?.longitude
+      }*/
     });
     await trackingDB.addGeoPoint(
       result.trackingObjectId,
@@ -83,8 +88,8 @@ async function logResult(result) {
       try {
         packages = await trackingDB.getAllPackages();
         break;
-      } catch (exception) {
-        logger.error('An exception occurred while retrieving packages', { exception: exception });
+      } catch (error) {
+        logger.error('An exception occurred while retrieving packages', error);
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
@@ -100,7 +105,6 @@ async function logResult(result) {
     
           const result = await trackDriver(package.trackingNumber, cookies, agent);
           if (!result.error) {
-            delete result.destinationAddress;
             await logResult(result);
             break;
           }
@@ -114,8 +118,8 @@ async function logResult(result) {
     
             continue;
           }
-        } catch (exception) {
-          logger.error('An exception occurred while processing package', { exception: exception });
+        } catch (error) {
+          logger.error('An exception occurred while processing package', error);
           continue;
         }
 

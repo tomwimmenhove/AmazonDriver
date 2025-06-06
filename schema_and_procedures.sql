@@ -51,7 +51,7 @@ CREATE TABLE `DeliveryStatus` (
   `statusId` int(11) NOT NULL AUTO_INCREMENT,
   `status` varchar(50) NOT NULL,
   PRIMARY KEY (`statusId`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -136,7 +136,7 @@ CREATE TABLE `TrackingNumbers` (
   `trackingNumber` varchar(64) NOT NULL,
   PRIMARY KEY (`trackingId`),
   UNIQUE KEY `uq_trackingNumbers_number` (`trackingNumber`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -175,7 +175,7 @@ CREATE TABLE `Visits` (
   PRIMARY KEY (`visitId`),
   KEY `idx_trackingId` (`trackingId`),
   CONSTRAINT `Visits_ibfk_1` FOREIGN KEY (`trackingId`) REFERENCES `TrackingNumbers` (`trackingId`)
-) ENGINE=InnoDB AUTO_INCREMENT=65 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=646 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -197,6 +197,32 @@ CREATE TABLE `tracking_summary_cache` (
   PRIMARY KEY (`trackingId`,`day`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Temporary table structure for view `v_LastLocations`
+--
+
+DROP TABLE IF EXISTS `v_LastLocations`;
+/*!50001 DROP VIEW IF EXISTS `v_LastLocations`*/;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8mb4;
+/*!50001 CREATE VIEW `v_LastLocations` AS SELECT
+ 1 AS `trackingNumber`,
+  1 AS `lat`,
+  1 AS `lon`,
+  1 AS `timeNow`,
+  1 AS `timePrev`,
+  1 AS `mapsLink`,
+  1 AS `distanceKm`,
+  1 AS `distanceMiles`,
+  1 AS `hoursElapsed`,
+  1 AS `speedKmh`,
+  1 AS `speedMph` */;
+SET character_set_client = @saved_cs_client;
+
+--
+-- Dumping events for database 'AmazonDriver'
+--
 
 --
 -- Dumping routines for database 'AmazonDriver'
@@ -367,16 +393,49 @@ DELIMITER ;
 DELIMITER ;;
 CREATE PROCEDURE `GetAllPackages`()
 BEGIN
-  SELECT
-    u.userName             AS userName,
-    tn.trackingNumber      AS trackingNumber,
-    p.createdAt            AS packageCreatedAt
-  FROM Packages AS p
-  JOIN Users AS u
-    ON p.userId = u.userId
-  JOIN TrackingNumbers AS tn
-    ON p.trackingId = tn.trackingId;
-END ;;
+       SELECT 
+         u.userName        AS userName,
+         tn.trackingNumber AS trackingNumber,
+         p.createdAt       AS packageCreatedAt,
+         ds.status         AS deliveryStatus
+       FROM Packages AS p
+       JOIN Users AS u
+         ON p.userId = u.userId
+       JOIN TrackingNumbers AS tn
+         ON p.trackingId = tn.trackingId
+       JOIN DeliveryStatus AS ds
+         ON p.deliveryStatusId = ds.statusId;
+     END ;;
+DELIMITER ;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;
+/*!50003 SET character_set_results = @saved_cs_results */ ;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
+/*!50003 DROP PROCEDURE IF EXISTS `GetAllPackagesWithStatus` */;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;
+/*!50003 SET character_set_client  = utf8mb3 */ ;
+/*!50003 SET character_set_results = utf8mb3 */ ;
+/*!50003 SET collation_connection  = utf8mb3_general_ci */ ;
+DELIMITER ;;
+CREATE PROCEDURE `GetAllPackagesWithStatus`()
+BEGIN
+       SELECT 
+         u.userName        AS userName,
+         tn.trackingNumber AS trackingNumber,
+         p.createdAt       AS packageCreatedAt,
+         ds.status         AS deliveryStatus
+       FROM Packages AS p
+       JOIN Users AS u
+         ON p.userId = u.userId
+       JOIN TrackingNumbers AS tn
+         ON p.trackingId = tn.trackingId
+       JOIN DeliveryStatus AS ds
+         ON p.deliveryStatusId = ds.statusId;
+     END ;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -1073,6 +1132,24 @@ DELIMITER ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
+
+--
+-- Final view structure for view `v_LastLocations`
+--
+
+/*!50001 DROP VIEW IF EXISTS `v_LastLocations`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8mb3 */;
+/*!50001 SET character_set_results     = utf8mb3 */;
+/*!50001 SET collation_connection      = utf8mb3_general_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 SQL SECURITY DEFINER */
+/*!50001 VIEW `v_LastLocations` AS with ranked as (select `gt`.`trackingId` AS `trackingId`,`tn`.`trackingNumber` AS `trackingNumber`,`gt`.`lat` AS `lat`,`gt`.`lon` AS `lon`,`gt`.`timeStamp` AS `timeStamp`,row_number() over ( partition by `gt`.`trackingId` order by `gt`.`timeStamp` desc) AS `rowNum` from (`GeoTracking` `gt` join `TrackingNumbers` `tn` on(`gt`.`trackingId` = `tn`.`trackingId`))), calc as (select `cur`.`trackingNumber` AS `trackingNumber`,round(`cur`.`lat`,6) AS `lat`,round(`cur`.`lon`,6) AS `lon`,`cur`.`timeStamp` AS `timeNow`,`prev`.`timeStamp` AS `timePrev`,concat('https://www.google.com/maps?q=',round(`cur`.`lat`,6),',',round(`cur`.`lon`,6)) AS `mapsLink`,6371 * 2 * asin(sqrt(pow(sin(radians(`cur`.`lat` - `prev`.`lat`) / 2),2) + cos(radians(`prev`.`lat`)) * cos(radians(`cur`.`lat`)) * pow(sin(radians(`cur`.`lon` - `prev`.`lon`) / 2),2))) AS `distanceKm`,timestampdiff(SECOND,`prev`.`timeStamp`,`cur`.`timeStamp`) / 3600.0 AS `hoursElapsed` from (`ranked` `cur` join `ranked` `prev` on(`cur`.`trackingId` = `prev`.`trackingId` and `cur`.`rowNum` = 1 and `prev`.`rowNum` = 2)))select `calc`.`trackingNumber` AS `trackingNumber`,`calc`.`lat` AS `lat`,`calc`.`lon` AS `lon`,`calc`.`timeNow` AS `timeNow`,`calc`.`timePrev` AS `timePrev`,`calc`.`mapsLink` AS `mapsLink`,`calc`.`distanceKm` AS `distanceKm`,`calc`.`distanceKm` * 0.621371 AS `distanceMiles`,`calc`.`hoursElapsed` AS `hoursElapsed`,`calc`.`distanceKm` / `calc`.`hoursElapsed` AS `speedKmh`,`calc`.`distanceKm` / `calc`.`hoursElapsed` * 0.621371 AS `speedMph` from `calc` */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -1083,4 +1160,4 @@ DELIMITER ;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-05-12 23:22:52
+-- Dump completed on 2025-06-01 16:07:05

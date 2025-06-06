@@ -298,9 +298,9 @@ module.exports = {
       const result = await fn(conn);
       await conn.commit();
       return result;
-    } catch (err) {
+    } catch (error) {
       await conn.rollback();
-      throw err;
+      throw error;
     } finally {
       conn.release();
     }
